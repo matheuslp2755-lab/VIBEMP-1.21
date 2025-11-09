@@ -50,12 +50,6 @@ const MessagesModal: React.FC<MessagesModalProps> = ({ isOpen, onClose, initialT
                         }
                     },
                     timestamp: serverTimestamp(),
-                    crystal: {
-                        createdAt: serverTimestamp(),
-                        lastInteractionAt: serverTimestamp(),
-                        level: 'BRILHANTE',
-                        streak: 1,
-                    }
                 });
             } else {
                 await updateDoc(conversationRef, { timestamp: serverTimestamp() });

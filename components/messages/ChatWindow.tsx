@@ -312,13 +312,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
     useEffect(() => {
         if (!crystalData || !crystalHeaderRef.current || !dialogRef.current) return;
 
-        const now = new Date();
-        const createdAt = crystalData.createdAt.toDate();
-        const justCreated = (now.getTime() - createdAt.getTime()) < 5000; // 5 seconds threshold
-
+        const justFormed = crystalData.streak >= 2 && (!prevCrystalData || prevCrystalData.streak < 2);
         const upgradedToBrilhante = crystalData.level === 'BRILHANTE' && prevCrystalData?.level && prevCrystalData.level !== 'BRILHANTE';
 
-        if (justCreated || upgradedToBrilhante) {
+        if (justFormed || upgradedToBrilhante) {
             const rect = crystalHeaderRef.current.getBoundingClientRect();
             const modalRect = dialogRef.current.getBoundingClientRect();
            
@@ -329,7 +326,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                 height: rect.height
             });
 
-            setAnimationMessage(justCreated ? t('crystal.formed') : t('crystal.glowing'));
+            setAnimationMessage(justFormed ? t('crystal.formed') : t('crystal.glowing'));
             setAnimationState('forming');
 
             const settlingTimer = setTimeout(() => {
@@ -383,6 +380,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
 
 
                 if (data.crystal) {
+                    if (data.crystal.streak < 2) {
+                        setCrystalData(null);
+                        return;
+                    }
                     const lastInteractionDate = data.crystal.lastInteractionAt.toDate();
                     const now = new Date();
                     const diffHours = (now.getTime() - lastInteractionDate.getTime()) / (1000 * 60 * 60);
@@ -628,34 +629,42 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
             const conversationSnap = await getDoc(conversationRef);
             const currentData = conversationSnap.data();
             
-            let newStreak = 1;
-            if (currentData?.crystal?.lastInteractionAt) {
+            let crystalUpdate: { [key: string]: any } = {};
+            
+            if (currentData?.crystal) {
                 const lastInteractionDate = currentData.crystal.lastInteractionAt.toDate();
+                const now = new Date();
+                let newStreak = currentData.crystal.streak;
+
+                const isToday = (d: Date) => {
+                    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+                };
                 const isYesterday = (d: Date) => {
-                    const today = new Date();
-                    const yesterday = new Date(today);
-                    yesterday.setDate(today.getDate() - 1);
+                    const yesterday = new Date(now);
+                    yesterday.setDate(now.getDate() - 1);
                     return d.getFullYear() === yesterday.getFullYear() && d.getMonth() === yesterday.getMonth() && d.getDate() === yesterday.getDate();
                 };
-                const isToday = (d: Date) => {
-                    const today = new Date();
-                    return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-                };
+                
                 if (isYesterday(lastInteractionDate)) {
-                    newStreak = (currentData.crystal.streak || 0) + 1;
-                } else if (isToday(lastInteractionDate)) {
-                    newStreak = currentData.crystal.streak || 1;
+                    newStreak++;
+                } else if (!isToday(lastInteractionDate)) {
+                    newStreak = 1;
                 }
+                
+                crystalUpdate = {
+                    'crystal.lastInteractionAt': serverTimestamp(),
+                    'crystal.streak': newStreak
+                };
+            } else {
+                crystalUpdate = {
+                    crystal: {
+                        createdAt: serverTimestamp(),
+                        lastInteractionAt: serverTimestamp(),
+                        level: 'APAGADO', // Start as inactive
+                        streak: 1
+                    }
+                };
             }
-            
-            const crystalUpdate = {
-                crystal: {
-                    createdAt: currentData?.crystal?.createdAt || serverTimestamp(),
-                    lastInteractionAt: serverTimestamp(),
-                    level: 'BRILHANTE',
-                    streak: newStreak,
-                }
-            };
 
             const lastMessageUpdate: any = {
                 text: tempMessageText,
