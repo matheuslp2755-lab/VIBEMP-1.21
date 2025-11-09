@@ -1,12 +1,14 @@
 import React, { useState, useEffect, StrictMode, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db, doc, updateDoc, serverTimestamp, messaging, getToken, onMessage } from './firebase';
+import { auth, db, doc, updateDoc, serverTimestamp, messaging, getToken, onMessage, collection, query, where, onSnapshot } from './firebase';
 import Login from './components/Login';
 import SignUp from './context/SignUp';
 import Feed from './components/Feed';
 import { LanguageProvider } from './context/LanguageContext';
+import { CallProvider, useCall } from './context/CallContext';
 import WelcomeAnimation from './components/common/WelcomeAnimation';
 import Toast from './components/common/Toast';
+import CallUI from './components/call/CallUI';
 
 const AppContent: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -16,6 +18,7 @@ const AppContent: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
   const prevUser = useRef<User | null>(null);
+  const { setIncomingCall, activeCall } = useCall();
 
   useEffect(() => {
     const welcomeKey = 'hasSeenWelcome_VibeMP';
@@ -41,6 +44,24 @@ const AppContent: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
+  
+  // Listener for incoming calls
+  useEffect(() => {
+    if (!user || activeCall) return;
+
+    const callsRef = collection(db, 'calls');
+    const q = query(callsRef, where('receiverId', '==', user.uid), where('status', '==', 'ringing'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+            const callDoc = snapshot.docs[0];
+            const callData = callDoc.data();
+            setIncomingCall({ callId: callDoc.id, ...callData });
+        }
+    });
+
+    return () => unsubscribe();
+  }, [user, activeCall, setIncomingCall]);
 
   useEffect(() => {
     if (!user) return;
@@ -155,6 +176,7 @@ const AppContent: React.FC = () => {
         <WelcomeAnimation onAnimationEnd={() => setShowWelcomeAnimation(false)} />
       )}
       <Toast message={toastMessage} show={showToast} />
+      <CallUI />
       {renderApp()}
     </>
   );
@@ -163,7 +185,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => (
   <StrictMode>
     <LanguageProvider>
-      <AppContent />
+        <CallProvider>
+            <AppContent />
+        </CallProvider>
     </LanguageProvider>
   </StrictMode>
 );

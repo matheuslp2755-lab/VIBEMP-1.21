@@ -255,5 +255,25 @@
       "contact": "Carregamento de contatos e não usuários",
       "verified": "Meta Verified"
     }
+  },
+  "call": {
+    "call": "Ligar",
+    "calling": "Ligando para {username}...",
+    "incomingCall": "Chamada de {username}",
+    "answer": "Atender",
+    "decline": "Recusar",
+    "hangUp": "Desligar",
+    "callEnded": "Chamada encerrada",
+    "onCallWith": "Em chamada com {username}",
+    "enterCallId": "Digite o ID da chamada para entrar",
+    "join": "Entrar",
+    "callId": "ID da Chamada",
+    "copyCallId": "Copiar ID",
+    "copied": "Copiado!",
+    "callInProgress": "Chamada em progresso...",
+    "noMicrophone": "Acesso ao microfone negado. Por favor, habilite nas configurações do seu navegador.",
+    "callError": "Ocorreu um erro durante a chamada.",
+    "videoCall": "Chamada de Vídeo",
+    "voiceCall": "Chamada de Voz"
   }
 }

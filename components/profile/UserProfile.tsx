@@ -28,6 +28,7 @@ import EditProfileModal from './EditProfileModal';
 import OnlineIndicator from '../common/OnlineIndicator';
 import PulseViewerModal from '../pulse/PulseViewerModal';
 import { useLanguage } from '../../context/LanguageContext';
+import { useCall } from '../../context/CallContext';
 
 const Spinner: React.FC = () => (
     <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-sky-500"></div>
@@ -39,6 +40,12 @@ const GridIcon: React.FC<{className?: string}> = ({ className }) => (
 
 const PulseGridIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg aria-label="Pulses" className={className} fill="currentColor" height="24" viewBox="0 0 24 24" width="24"><path d="M12 2.5a9.5 9.5 0 100 19 9.5 9.5 0 000-19zm0 1.5a8 8 0 110 16 8 8 0 010-16z" opacity="0.4"></path><path d="M12 7a5 5 0 100 10 5 5 0 000-10z"></path></svg>
+);
+
+const CallIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+    </svg>
 );
 
 
@@ -79,6 +86,7 @@ type Pulse = {
 
 const UserProfile: React.FC<UserProfileProps> = ({ userId, onStartMessage }) => {
     const { t } = useLanguage();
+    const { startCall, activeCall } = useCall();
     const [user, setUser] = useState<ProfileUserData | null>(null);
     const [posts, setPosts] = useState<Post[]>([]);
     const [pulses, setPulses] = useState<Pulse[]>([]);
@@ -428,6 +436,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, onStartMessage }) => 
                     <Button onClick={handleFollowAction} className="!w-auto">{t('profile.follow')}</Button>
                 )}
                  <Button onClick={() => onStartMessage({ id: userId, username: user!.username, avatar: user!.avatar })} className="!w-auto !bg-zinc-200 dark:!bg-zinc-700 !text-black dark:!text-white hover:!bg-zinc-300 dark:hover:!bg-zinc-600">{t('profile.message')}</Button>
+                 <Button 
+                    onClick={() => startCall({ id: userId, username: user!.username, avatar: user!.avatar })} 
+                    disabled={!!activeCall}
+                    className="!w-auto !px-2 !bg-zinc-200 dark:!bg-zinc-700 !text-black dark:!text-white hover:!bg-zinc-300 dark:hover:!bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={t('call.call')}
+                 >
+                    <CallIcon className="w-5 h-5" />
+                 </Button>
             </div>
         );
     };

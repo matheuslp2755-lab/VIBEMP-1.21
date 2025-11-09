@@ -22,6 +22,7 @@ import {
 import ConnectionCrystal from './ConnectionCrystal';
 import OnlineIndicator from '../common/OnlineIndicator';
 import { useLanguage } from '../../context/LanguageContext';
+import { useCall } from '../../context/CallContext';
 
 interface ForwardedPostProps {
   content: {
@@ -233,6 +234,18 @@ const PauseIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
+const CallIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+    </svg>
+);
+
+const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
+);
+
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
     const { t } = useLanguage();
@@ -253,6 +266,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
     const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
+    const { startCall, activeCall } = useCall();
+    const [isCallDropdownOpen, setIsCallDropdownOpen] = useState(false);
 
     type AnimationState = 'idle' | 'forming' | 'settling';
     const [animationState, setAnimationState] = useState<AnimationState>('idle');
@@ -270,7 +285,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const recordingTimerRef = useRef<number | null>(null);
+    const callDropdownRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (callDropdownRef.current && !callDropdownRef.current.contains(event.target as Node)) {
+                setIsCallDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -313,7 +340,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                 clearTimeout(settlingTimer);
             };
         }
-    }, [crystalData, prevCrystalData]);
+    }, [crystalData, prevCrystalData, t]);
 
     useEffect(() => {
         if (!conversationId || !currentUser) {
@@ -411,7 +438,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                 unsubUserStatusRef.current = null;
             }
         };
-    }, [conversationId, currentUser]);
+    }, [conversationId, currentUser, t]);
 
     const handleClearMedia = () => {
         setMediaFile(null);
@@ -763,6 +790,39 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                                 {crystalData.streak > 1 && (
                                     <span title={t('crystal.streak', { streak: crystalData.streak })}>🔥 {crystalData.streak}</span>
                                 )}
+                            </div>
+                        )}
+                    </div>
+                    <div ref={callDropdownRef} className="ml-auto relative">
+                        <button 
+                            onClick={() => setIsCallDropdownOpen(prev => !prev)}
+                            disabled={!!activeCall}
+                            className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t('call.call')}
+                        >
+                            <CallIcon className="w-6 h-6" />
+                        </button>
+                        {isCallDropdownOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-zinc-950 rounded-md shadow-lg border border-zinc-200 dark:border-zinc-800 z-20 py-1">
+                                <button 
+                                    disabled // Video call not implemented
+                                    className="w-full flex items-center gap-3 text-left px-4 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <VideoIcon className="w-5 h-5" />
+                                    <span>{t('call.videoCall')}</span>
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (otherUser) {
+                                            startCall(otherUser);
+                                        }
+                                        setIsCallDropdownOpen(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 text-left px-4 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                >
+                                    <CallIcon className="w-5 h-5" />
+                                    <span>{t('call.voiceCall')}</span>
+                                </button>
                             </div>
                         )}
                     </div>

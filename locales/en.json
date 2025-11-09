@@ -250,5 +250,25 @@
       "contact": "Contact Uploading & Non-Users",
       "verified": "Meta Verified"
     }
+  },
+  "call": {
+    "call": "Call",
+    "calling": "Calling {username}...",
+    "incomingCall": "Incoming call from {username}",
+    "answer": "Answer",
+    "decline": "Decline",
+    "hangUp": "Hang Up",
+    "callEnded": "Call ended",
+    "onCallWith": "On call with {username}",
+    "enterCallId": "Enter Call ID to join",
+    "join": "Join",
+    "callId": "Call ID",
+    "copyCallId": "Copy ID",
+    "copied": "Copied!",
+    "callInProgress": "Call in progress...",
+    "noMicrophone": "Microphone access denied. Please enable it in your browser settings.",
+    "callError": "An error occurred during the call.",
+    "videoCall": "Video Call",
+    "voiceCall": "Voice Call"
   }
 }
