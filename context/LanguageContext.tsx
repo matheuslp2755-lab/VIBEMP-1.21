@@ -62,6 +62,7 @@ const messages = {
     "messages": "Direct",
     "followNotification": "{username} começou a seguir você.",
     "messageNotification": "{username} te enviou uma mensagem.",
+    "messageSeenNotification": "{username} viu sua mensagem.",
     "followRequestNotification": "{username} quer seguir você.",
     "mentionCommentNotification": "{username} mencionou você em um comentário: \"{commentText}\"",
     "duoRequestNotification": "<b>{username}</b> quer criar uma foto em dupla com você.",

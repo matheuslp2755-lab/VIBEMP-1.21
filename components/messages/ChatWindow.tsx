@@ -167,6 +167,11 @@ interface ConversationData {
             lastSeenMessageTimestamp?: any;
         }
     };
+    lastMessage?: {
+        senderId: string;
+        text: string;
+        timestamp: any;
+    };
     crystal?: CrystalData;
 }
 
@@ -333,6 +338,44 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
         return () => unsubscribe();
     }, [otherUser]);
 
+    useEffect(() => {
+        const currentUser = auth.currentUser;
+        if (!conversationId || !currentUser || messages.length === 0 || !otherUser) return;
+
+        const conversationRef = doc(db, 'conversations', conversationId);
+
+        getDoc(conversationRef).then(docSnap => {
+            if (!docSnap.exists()) return;
+            const convData = docSnap.data() as ConversationData;
+            const myInfo = convData.participantInfo?.[currentUser.uid];
+            const lastMessage = convData.lastMessage;
+
+            // Condition: there is a last message, it's from the other user, and it's newer than my last seen time.
+            if (lastMessage && lastMessage.senderId === otherUser.id && (!myInfo?.lastSeenMessageTimestamp || lastMessage.timestamp.seconds > myInfo.lastSeenMessageTimestamp.seconds)) {
+                const batch = writeBatch(db);
+
+                // Update my 'lastSeen' timestamp
+                batch.update(conversationRef, {
+                    [`participantInfo.${currentUser.uid}.lastSeenMessageTimestamp`]: serverTimestamp()
+                });
+
+                // Create a "seen" notification for the other user
+                const notificationRef = doc(collection(db, 'users', otherUser.id, 'notifications'));
+                batch.set(notificationRef, {
+                    type: 'message_seen',
+                    fromUserId: currentUser.uid,
+                    fromUsername: currentUser.displayName,
+                    fromUserAvatar: currentUser.photoURL,
+                    timestamp: serverTimestamp(),
+                    read: false,
+                    conversationId: conversationId,
+                });
+
+                batch.commit().catch(console.error);
+            }
+        });
+    }, [conversationId, messages, currentUser, otherUser]);
+
     const handleSendMessage = async (text: string) => {
         const currentUser = auth.currentUser;
         if (!text.trim() || !currentUser || !conversationId || !otherUser) return;
@@ -367,20 +410,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
             timestamp: serverTimestamp(),
           });
           
-          // 3. Create notification for the recipient
-          if (otherUser.id !== currentUser.uid) {
-            const notificationRef = doc(collection(db, 'users', otherUser.id, 'notifications'));
-            batch.set(notificationRef, {
-                type: 'message',
-                fromUserId: currentUser.uid,
-                fromUsername: currentUser.displayName,
-                fromUserAvatar: currentUser.photoURL,
-                timestamp: serverTimestamp(),
-                read: false,
-                conversationId: conversationId,
-            });
-          }
-    
           await batch.commit();
     
           setNewMessage('');

@@ -59,6 +59,7 @@
     "messages": "Direct",
     "followNotification": "{username} started following you.",
     "messageNotification": "{username} sent you a message.",
+    "messageSeenNotification": "{username} saw your message.",
     "followRequestNotification": "{username} wants to follow you.",
     "mentionCommentNotification": "{username} mentioned you in a comment: \"{commentText}\"",
     "duoRequestNotification": "<b>{username}</b> wants to create a duo photo with you.",

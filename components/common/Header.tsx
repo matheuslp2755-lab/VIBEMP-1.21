@@ -14,7 +14,7 @@ type UserSearchResult = {
 
 type Notification = {
     id: string;
-    type: 'follow' | 'message' | 'follow_request' | 'mention_comment' | 'duo_request' | 'duo_accepted' | 'duo_refused';
+    type: 'follow' | 'message' | 'follow_request' | 'mention_comment' | 'duo_request' | 'duo_accepted' | 'duo_refused' | 'message_seen';
     fromUserId: string;
     fromUsername: string;
     fromUserAvatar: string;
@@ -503,7 +503,7 @@ const Header: React.FC<HeaderProps> = ({ onSelectUser, onGoHome, onOpenCreatePos
     };
 
     const handleNotificationClick = (notification: Notification) => {
-        if (notification.type === 'message' && notification.conversationId) {
+        if ((notification.type === 'message' || notification.type === 'message_seen') && notification.conversationId) {
             onOpenMessages(notification.conversationId);
         } else if (['follow', 'mention_comment', 'duo_accepted', 'duo_refused'].includes(notification.type)) {
             onSelectUser(notification.fromUserId);
@@ -562,6 +562,8 @@ const Header: React.FC<HeaderProps> = ({ onSelectUser, onGoHome, onOpenCreatePos
                 return t('header.duoAcceptedNotification', params);
             case 'duo_refused':
                 return t('header.duoRefusedNotification', params);
+            case 'message_seen':
+                return t('header.messageSeenNotification', params);
             default:
                 return '';
         }
