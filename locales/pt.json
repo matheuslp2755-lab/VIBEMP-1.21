@@ -175,7 +175,9 @@
       "cancelUpload": "Cancelar envio",
       "viewMedia": "Ver mídia"
     },
-    "forwardedPost": "Encaminhou uma publicação"
+    "forwardedPost": "Encaminhou uma publicação",
+    "anonymousModeOn": "Ficar anônimo",
+    "anonymousModeOff": "Ficar online"
   },
   "forwardModal": {
     "title": "Encaminhar para",
@@ -264,6 +266,8 @@
     "decline": "Recusar",
     "hangUp": "Desligar",
     "callEnded": "Chamada encerrada",
+    "callDeclined": "{username} recusou a chamada.",
+    "callCancelled": "Chamada cancelada.",
     "onCallWith": "Em chamada com {username}",
     "enterCallId": "Digite o ID da chamada para entrar",
     "join": "Entrar",

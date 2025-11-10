@@ -89,6 +89,7 @@ const Header: React.FC<HeaderProps> = ({ onSelectUser, onGoHome, onOpenCreatePos
     const [isActivityDropdownOpen, setIsActivityDropdownOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+    const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
     const [following, setFollowing] = useState<string[]>([]);
     const [requestedIds, setRequestedIds] = useState<string[]>([]);
     const [isMobileSearchVisible, setIsMobileSearchVisible] = useState(false);
@@ -124,6 +125,35 @@ const Header: React.FC<HeaderProps> = ({ onSelectUser, onGoHome, onOpenCreatePos
             setHasUnreadNotifications(hasUnread);
         }, (error) => {
             console.error("Error fetching notifications:", error);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Listen for unread messages
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const q = query(collection(db, 'conversations'), where('participants', 'array-contains', currentUser.uid));
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const anyUnread = snapshot.docs.some(doc => {
+                const data = doc.data();
+                if (!data.lastMessage || data.lastMessage.senderId === currentUser.uid) {
+                    return false;
+                }
+                const myInfo = data.participantInfo?.[currentUser.uid];
+                if (!myInfo?.lastSeenMessageTimestamp) {
+                    return true;
+                }
+                if (!data.lastMessage.timestamp) {
+                    return false;
+                }
+                return data.lastMessage.timestamp.seconds > myInfo.lastSeenMessageTimestamp.seconds;
+            });
+            setHasUnreadMessages(anyUnread);
+        }, (error) => {
+            console.error("Error checking for unread messages:", error);
         });
 
         return () => unsubscribe();
@@ -585,6 +615,9 @@ const Header: React.FC<HeaderProps> = ({ onSelectUser, onGoHome, onOpenCreatePos
 
                     <button onClick={() => onOpenMessages()} className="relative" title={t('header.messages')}>
                         <MessagesIcon className="w-6 h-6 text-zinc-800 dark:text-zinc-200 hover:text-zinc-500 dark:hover:text-zinc-400"/>
+                        {hasUnreadMessages && (
+                            <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-pink-500 ring-2 ring-white dark:ring-black"></span>
+                        )}
                     </button>
                     
                     <div ref={activityRef} className="relative">

@@ -27,6 +27,7 @@ type UserSearchResult = {
     username: string;
     avatar: string;
     lastSeen?: { seconds: number; nanoseconds: number };
+    isAnonymous?: boolean;
 };
 
 interface NewMessageProps {
@@ -101,7 +102,7 @@ const NewMessage: React.FC<NewMessageProps> = ({ onSelectUser, onBack }) => {
                 {isSearching && <SpinnerIcon />}
                 {!isSearching && searchQuery && searchResults.length === 0 && <p className="text-center text-sm text-zinc-500 dark:text-zinc-400 p-4">{t('header.noResults')}</p>}
                 {!isSearching && searchResults.map(user => {
-                    const isOnline = user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600;
+                    const isOnline = !user.isAnonymous && user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600;
                     return (
                         <button key={user.id} onClick={() => onSelectUser(user)} className="w-full text-left flex items-center p-3 gap-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900">
                            <div className="relative flex-shrink-0">

@@ -177,7 +177,9 @@ const messages = {
       "cancelUpload": "Cancelar envio",
       "viewMedia": "Ver mídia"
     },
-    "forwardedPost": "Encaminhou uma publicação"
+    "forwardedPost": "Encaminhou uma publicação",
+    "anonymousModeOn": "Ficar anônimo",
+    "anonymousModeOff": "Ficar online"
   },
   "forwardModal": {
     "title": "Encaminhar para",

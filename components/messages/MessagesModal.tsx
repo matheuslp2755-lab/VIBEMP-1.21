@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ConversationList from './ConversationList';
 import ChatWindow from './ChatWindow';
 import NewMessage from './NewMessage';
-import { auth, db, doc, getDoc, setDoc, serverTimestamp, updateDoc } from '../../firebase';
+import { auth, db, doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from '../../firebase';
 import { useLanguage } from '../../context/LanguageContext';
 
 interface MessagesModalProps {
@@ -18,10 +18,31 @@ const XIcon: React.FC<{className?: string}> = ({ className }) => (
     </svg>
 );
 
+const AnonIcon: React.FC<{className?: string}> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2c2.761 0 5 2.239 5 5s-2.239 5-5 5-5-2.239-5-5 2.239-5 5-5zm0 10c-3.866 0-7 1.79-7 4v3h14v-3c0-2.21-3.134-4-7-4zm-1.5-6a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm6 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 13.5a6.002 6.002 0 00-4.321 1.832" />
+    </svg>
+);
+
+
 const MessagesModal: React.FC<MessagesModalProps> = ({ isOpen, onClose, initialTargetUser, initialConversationId }) => {
     const { t } = useLanguage();
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [view, setView] = useState<'list' | 'new'>('list');
+    const [isAnonymous, setIsAnonymous] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen || !auth.currentUser) return;
+
+        const unsub = onSnapshot(doc(db, 'users', auth.currentUser.uid), (doc) => {
+            if (doc.exists()) {
+                setIsAnonymous(doc.data().isAnonymous || false);
+            }
+        });
+
+        return () => unsub();
+    }, [isOpen]);
 
     const startConversationWithUser = async (targetUser: { id: string, username: string, avatar: string }) => {
         if (!auth.currentUser) return;
@@ -81,6 +102,12 @@ const MessagesModal: React.FC<MessagesModalProps> = ({ isOpen, onClose, initialT
     }, [isOpen, initialTargetUser, initialConversationId]);
 
     if (!isOpen) return null;
+    
+    const handleToggleAnonymous = async () => {
+        if (!auth.currentUser) return;
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, { isAnonymous: !isAnonymous });
+    };
 
     const renderContent = () => {
         if (activeConversationId) {
@@ -88,6 +115,7 @@ const MessagesModal: React.FC<MessagesModalProps> = ({ isOpen, onClose, initialT
                 <ChatWindow 
                     conversationId={activeConversationId} 
                     onBack={() => setActiveConversationId(null)}
+                    isCurrentUserAnonymous={isAnonymous}
                 />
             );
         }
@@ -104,7 +132,13 @@ const MessagesModal: React.FC<MessagesModalProps> = ({ isOpen, onClose, initialT
         return (
             <>
                 <header className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0">
-                    <div className="w-8"></div> {/* Spacer */}
+                     <button 
+                        onClick={handleToggleAnonymous} 
+                        className={`w-8 h-8 p-1.5 rounded-full transition-colors ${isAnonymous ? 'bg-sky-500 text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                        title={isAnonymous ? t('messages.anonymousModeOff') : t('messages.anonymousModeOn')}
+                    >
+                        <AnonIcon className="w-full h-full"/>
+                    </button>
                     <h2 className="text-lg font-semibold text-center">{t('messages.title')}</h2>
                     <button onClick={() => setView('new')} className="w-8 text-right" aria-label={t('messages.newMessage')}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

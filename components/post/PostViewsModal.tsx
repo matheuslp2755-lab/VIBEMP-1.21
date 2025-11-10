@@ -14,6 +14,7 @@ type UserSearchResult = {
     username: string;
     avatar: string;
     lastSeen?: { seconds: number; nanoseconds: number };
+    isAnonymous?: boolean;
 };
 
 const Spinner: React.FC = () => (
@@ -52,6 +53,7 @@ const PostViewsModal: React.FC<PostViewsModalProps> = ({ isOpen, onClose, postId
                             username: doc.data()?.username,
                             avatar: doc.data()?.avatar,
                             lastSeen: doc.data()?.lastSeen,
+                            isAnonymous: doc.data()?.isAnonymous || false,
                         } as UserSearchResult));
 
                     setViewers(viewersData);
@@ -90,7 +92,7 @@ const PostViewsModal: React.FC<PostViewsModalProps> = ({ isOpen, onClose, postId
                         <Spinner />
                     ) : viewers.length > 0 ? (
                         viewers.map(user => {
-                             const isOnline = user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600;
+                             const isOnline = !user.isAnonymous && user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600;
                              return (
                                 <div key={user.id} className="w-full text-left flex items-center p-3 gap-3">
                                     <div className="relative flex-shrink-0">

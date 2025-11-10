@@ -15,7 +15,7 @@ const servers = {
   iceCandidatePoolSize: 10,
 };
 
-type CallStatus = 'idle' | 'ringing-outgoing' | 'ringing-incoming' | 'connected' | 'ended';
+type CallStatus = 'idle' | 'ringing-outgoing' | 'ringing-incoming' | 'connected' | 'ended' | 'declined' | 'cancelled';
 
 interface UserInfo {
     id: string;
@@ -36,7 +36,7 @@ interface CallContextType {
     remoteStream: MediaStream | null;
     startCall: (receiver: UserInfo) => Promise<void>;
     answerCall: () => Promise<void>;
-    hangUp: () => Promise<void>;
+    hangUp: (isCleanupOnly?: boolean) => Promise<void>;
     declineCall: () => Promise<void>;
     setIncomingCall: (callData: any) => void;
     error: string | null;
@@ -52,6 +52,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const pc = useRef<RTCPeerConnection | null>(null);
     const currentUser = auth.currentUser as User;
+    
+    const activeCallRef = useRef(activeCall);
+    useEffect(() => {
+        activeCallRef.current = activeCall;
+    }, [activeCall]);
+
 
     const resetCallState = useCallback(() => {
         if (pc.current) {
@@ -69,7 +75,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Effect for managing Firestore listeners based on activeCall
     useEffect(() => {
-        if (!activeCall?.callId || !pc.current) return;
+        if (!activeCall?.callId) return;
         
         const callId = activeCall.callId;
         const callDocRef = doc(db, 'calls', callId);
@@ -79,7 +85,25 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Listener for the main call document
         unsubs.push(onSnapshot(callDocRef, async (snapshot) => {
             const data = snapshot.data();
-            if (!pc.current || !data) return;
+            if (!data) {
+                resetCallState();
+                return;
+            };
+
+            const status = data.status as CallStatus;
+            const currentCall = activeCallRef.current; // Use ref for fresh state
+
+            if (currentCall?.status === 'ringing-incoming' && status === 'cancelled') {
+                resetCallState();
+                return;
+            }
+
+            if (['ended', 'declined', 'cancelled'].includes(status) && currentCall?.status !== status) {
+                 setActiveCall(prev => prev ? { ...prev, status } : null);
+                 return;
+            }
+            
+            if (!pc.current) return;
 
             if (data.answer && pc.current.remoteDescription?.type !== 'answer') {
                 try {
@@ -89,26 +113,25 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
             }
             
-            if (data.status === 'connected' && activeCall.status !== 'connected') {
+            if (data.status === 'connected' && currentCall?.status !== 'connected') {
                 setActiveCall(prev => prev ? ({ ...prev, status: 'connected' }) : null);
             }
-            
-            if (data.status === 'ended') {
-                resetCallState();
-            }
         }));
+        
+        if (pc.current) {
+            const isCaller = activeCall.caller.id === currentUser?.uid;
+            // Listen for ICE candidates from the other party
+            const candidatesCollection = collection(db, 'calls', callId, isCaller ? 'receiverCandidates' : 'callerCandidates');
+            unsubs.push(onSnapshot(candidatesCollection, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const candidate = new RTCIceCandidate(change.doc.data());
+                        pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding ICE candidate:", e));
+                    }
+                });
+            }));
+        }
 
-        const isCaller = activeCall.caller.id === currentUser?.uid;
-        // Listen for ICE candidates from the other party
-        const candidatesCollection = collection(db, 'calls', callId, isCaller ? 'receiverCandidates' : 'callerCandidates');
-        unsubs.push(onSnapshot(candidatesCollection, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const candidate = new RTCIceCandidate(change.doc.data());
-                    pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding ICE candidate:", e));
-                }
-            });
-        }));
 
         return () => {
             unsubs.forEach(unsub => unsub());
@@ -127,11 +150,17 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [localStream]);
 
     const startCall = async (receiver: UserInfo) => {
-        if (!currentUser) return;
+        console.log("Iniciando startCall para o receptor:", receiver.id);
+        if (!currentUser || activeCall) {
+            console.log("startCall abortada. Motivo:", { hasCurrentUser: !!currentUser, activeCall });
+            return;
+        }
         setError(null);
         let stream: MediaStream | null = null;
         try {
+            console.log("Solicitando permissões de microfone...");
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log("Permissão de microfone concedida.");
             setLocalStream(stream);
 
             pc.current = new RTCPeerConnection(servers);
@@ -150,6 +179,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             const callId = callDocRef.id;
+            console.log("Documento de chamada criado no Firebase com ID:", callId);
+
 
             pc.current.onicecandidate = event => {
                 if (event.candidate) {
@@ -164,6 +195,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const offerDescription = await pc.current.createOffer();
             await pc.current.setLocalDescription(offerDescription);
             await updateDoc(callDocRef, { offer: { sdp: offerDescription.sdp, type: offerDescription.type } });
+            console.log("Oferta criada e salva no Firebase.");
+
 
             setActiveCall({
                 callId,
@@ -173,7 +206,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
         } catch (err) {
-            console.error("Error starting call:", err);
+            console.error("Erro ao iniciar a chamada:", err);
             partialCleanup();
             setError("call.noMicrophone");
         }
@@ -231,35 +264,41 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
     
-    const hangUp = async () => {
-        if (activeCall) {
-            const callDocRef = doc(db, 'calls', activeCall.callId);
+    const hangUp = useCallback(async (isCleanupOnly = false) => {
+        const call = activeCallRef.current;
+        if (call && !isCleanupOnly) {
+            const callDocRef = doc(db, 'calls', call.callId);
             const callDoc = await getDoc(callDocRef);
-            if(callDoc.exists() && callDoc.data().status !== 'ended') {
-                await updateDoc(callDocRef, { status: 'ended' });
+            if(callDoc.exists() && !['ended', 'declined', 'cancelled'].includes(callDoc.data().status)) {
+                let newStatus: CallStatus = 'ended';
+                 if (call.status === 'ringing-outgoing') {
+                    newStatus = 'cancelled';
+                }
+                await updateDoc(callDocRef, { status: newStatus });
             }
         }
         resetCallState();
-    };
+    }, [resetCallState]);
 
-    const declineCall = async () => {
-        if(activeCall) {
-            const callDocRef = doc(db, 'calls', activeCall.callId);
-            await updateDoc(callDocRef, { status: 'ended' });
+    const declineCall = useCallback(async () => {
+        const call = activeCallRef.current;
+        if(call) {
+            const callDocRef = doc(db, 'calls', call.callId);
+            await updateDoc(callDocRef, { status: 'declined' });
         }
         resetCallState();
-    };
+    }, [resetCallState]);
 
     // Auto-hangup on window close
     useEffect(() => {
         const handleBeforeUnload = () => {
-            if (activeCall) {
+            if (activeCallRef.current) {
                 hangUp();
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [activeCall, hangUp]);
+    }, [hangUp]);
 
     const value = {
         activeCall,

@@ -99,8 +99,10 @@ const ConversationList: React.FC<ConversationListProps> = ({ onSelectConversatio
                     const userDocRef = doc(db, 'users', userId);
                     const unsub = onSnapshot(userDocRef, (userSnap) => {
                         if (userSnap.exists()) {
-                            const lastSeen = userSnap.data().lastSeen;
-                            const isOnline = lastSeen && (new Date().getTime() / 1000 - lastSeen.seconds) < 600;
+                            const userData = userSnap.data();
+                            const lastSeen = userData.lastSeen;
+                            const isAnonymous = userData.isAnonymous || false;
+                            const isOnline = !isAnonymous && lastSeen && (new Date().getTime() / 1000 - lastSeen.seconds) < 600;
                             setUserStatuses(prev => ({...prev, [userId]: isOnline }));
                         }
                     });

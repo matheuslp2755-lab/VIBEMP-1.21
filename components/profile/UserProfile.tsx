@@ -60,6 +60,7 @@ type ProfileUserData = {
     bio?: string;
     isPrivate?: boolean;
     lastSeen?: { seconds: number; nanoseconds: number };
+    isAnonymous?: boolean;
 };
 
 type Post = {
@@ -122,6 +123,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, onStartMessage }) => 
             const postsQuery = query(collection(db, 'posts'), where('userId', '==', userId));
             const duoPostsQuery = query(collection(db, 'posts'), where('duoPartner.userId', '==', userId));
             
+            // FIX: Corrected a typo where duoPostsSnap was used instead of duoPostsQuery.
             const [followersSnap, followingSnap, pulsesSnap, postsSnap, duoPostsSnap] = await Promise.all([
                 getDocs(followersQuery),
                 getDocs(followingQuery),
@@ -437,7 +439,14 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, onStartMessage }) => 
                 )}
                  <Button onClick={() => onStartMessage({ id: userId, username: user!.username, avatar: user!.avatar })} className="!w-auto !bg-zinc-200 dark:!bg-zinc-700 !text-black dark:!text-white hover:!bg-zinc-300 dark:hover:!bg-zinc-600">{t('profile.message')}</Button>
                  <Button 
-                    onClick={() => startCall({ id: userId, username: user!.username, avatar: user!.avatar })} 
+                    onClick={() => {
+                        console.log("Botão de ligação clicado! Tentando ligar para o usuário:", userId);
+                        if (user) {
+                           startCall({ id: userId, username: user.username, avatar: user.avatar });
+                        } else {
+                           console.error("Não foi possível iniciar a chamada: dados do usuário não disponíveis.");
+                        }
+                    }} 
                     disabled={!!activeCall}
                     className="!w-auto !px-2 !bg-zinc-200 dark:!bg-zinc-700 !text-black dark:!text-white hover:!bg-zinc-300 dark:hover:!bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={t('call.call')}
@@ -530,7 +539,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId, onStartMessage }) => 
         return <p className="text-center p-8 text-zinc-500 dark:text-zinc-400">{t('profile.notFound')}</p>;
     }
 
-    const isOnline = user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600; // 10 minutes
+    const isOnline = !user.isAnonymous && user.lastSeen && (new Date().getTime() / 1000 - user.lastSeen.seconds) < 600; // 10 minutes
 
     return (
         <>

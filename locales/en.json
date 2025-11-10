@@ -174,7 +174,9 @@
       "cancelUpload": "Cancel upload",
       "viewMedia": "View media"
     },
-    "forwardedPost": "Forwarded a post"
+    "forwardedPost": "Forwarded a post",
+    "anonymousModeOn": "Go anonymous",
+    "anonymousModeOff": "Go online"
   },
   "forwardModal": {
     "title": "Forward to",
@@ -259,6 +261,8 @@
     "decline": "Decline",
     "hangUp": "Hang Up",
     "callEnded": "Call ended",
+    "callDeclined": "{username} declined the call.",
+    "callCancelled": "Call cancelled.",
     "onCallWith": "On call with {username}",
     "enterCallId": "Enter Call ID to join",
     "join": "Join",

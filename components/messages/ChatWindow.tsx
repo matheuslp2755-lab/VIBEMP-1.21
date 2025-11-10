@@ -118,6 +118,7 @@ const ForwardedPost: React.FC<ForwardedPostProps> = ({ content }) => {
 interface ChatWindowProps {
     conversationId: string | null;
     onBack: () => void;
+    isCurrentUserAnonymous: boolean;
 }
 
 interface Message {
@@ -247,7 +248,7 @@ const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurrentUserAnonymous }) => {
     const { t } = useLanguage();
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -368,8 +369,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                         const userDocRef = doc(db, 'users', otherUserId);
                         unsubUserStatusRef.current = onSnapshot(userDocRef, (userSnap) => {
                             if (userSnap.exists()) {
-                                const lastSeen = userSnap.data().lastSeen;
-                                const isOnline = lastSeen && (new Date().getTime() / 1000 - lastSeen.seconds) < 600;
+                                const userData = userSnap.data();
+                                const lastSeen = userData.lastSeen;
+                                const isAnonymous = userData.isAnonymous || false;
+                                const isOnline = !isAnonymous && lastSeen && (new Date().getTime() / 1000 - lastSeen.seconds) < 600;
                                 setIsOtherUserOnline(isOnline);
                             } else {
                                 setIsOtherUserOnline(false);
@@ -413,7 +416,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
 
             const lastOtherUserMessage = [...msgs].reverse().find(m => m.senderId !== currentUser.uid);
             
-            if (lastOtherUserMessage) {
+            if (lastOtherUserMessage && !isCurrentUserAnonymous) {
                 const convRef = doc(db, 'conversations', conversationId);
                 const convSnap = await getDoc(convRef);
                 const convData = convSnap.data() as ConversationData;
@@ -439,7 +442,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                 unsubUserStatusRef.current = null;
             }
         };
-    }, [conversationId, currentUser, t]);
+    }, [conversationId, currentUser, t, isCurrentUserAnonymous]);
 
     const handleClearMedia = () => {
         setMediaFile(null);
@@ -487,7 +490,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
       
         const conversationRef = doc(db, 'conversations', conversationId);
         const messagesRef = collection(conversationRef, 'messages');
-        const recipientNotificationRef = doc(collection(db, 'users', otherUser.id, 'notifications'));
       
         try {
             const uploadRef = storageRef(storage, `chat_audio/${conversationId}/${Date.now()}.webm`);
@@ -523,15 +525,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
                 'crystal.level': 'BRILHANTE',
                 'crystal.streak': newStreak
             });
-            batch.set(recipientNotificationRef, {
-                type: 'message',
-                fromUserId: currentUser.uid,
-                fromUsername: currentUser.displayName,
-                fromUserAvatar: currentUser.photoURL,
-                conversationId: conversationId,
-                timestamp: serverTimestamp(),
-                read: false,
-            });
+
             await batch.commit();
         } catch (error) {
             console.error("Error sending audio message:", error);
@@ -598,7 +592,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
 
         const conversationRef = doc(db, 'conversations', conversationId);
         const messagesRef = collection(conversationRef, 'messages');
-        const recipientNotificationRef = doc(collection(db, 'users', otherUser.id, 'notifications'));
 
         try {
             const messageData: any = {
@@ -680,15 +673,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack }) => {
             const newMessageRef = doc(messagesRef);
             batch.set(newMessageRef, messageData);
             batch.update(conversationRef, { lastMessage: lastMessageUpdate, timestamp: serverTimestamp(), ...crystalUpdate });
-            batch.set(recipientNotificationRef, {
-                type: 'message',
-                fromUserId: currentUser.uid,
-                fromUsername: currentUser.displayName,
-                fromUserAvatar: currentUser.photoURL,
-                conversationId: conversationId,
-                timestamp: serverTimestamp(),
-                read: false,
-            });
+
             await batch.commit();
 
         } catch (error) {

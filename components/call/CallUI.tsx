@@ -52,10 +52,20 @@ const CallUI: React.FC = () => {
         }
     }, [localStream, remoteStream]);
 
+    useEffect(() => {
+        if (activeCall && ['ended', 'declined', 'cancelled'].includes(activeCall.status)) {
+            const timer = setTimeout(() => {
+                hangUp(true); // cleanup only
+            }, 2500);
+            return () => clearTimeout(timer);
+        }
+    }, [activeCall, hangUp]);
+
+
     if (!activeCall && !error) return null;
 
     if (error) {
-        return <ErrorUI error={error} onDismiss={hangUp} />;
+        return <ErrorUI error={error} onDismiss={() => hangUp(true)} />;
     }
     
     if (!activeCall) return null;
@@ -70,7 +80,7 @@ const CallUI: React.FC = () => {
                         <img src={otherUser.avatar} alt={otherUser.username} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-zinc-700 animate-pulse" />
                         <h3 className="text-xl font-semibold">{t('call.calling', { username: otherUser.username })}</h3>
                         <p className="text-sm text-zinc-400 mt-2">{t('call.callInProgress')}</p>
-                        <Button onClick={hangUp} className="w-full mt-10 !bg-red-600 hover:!bg-red-700">{t('call.hangUp')}</Button>
+                        <Button onClick={() => hangUp()} className="w-full mt-10 !bg-red-600 hover:!bg-red-700">{t('call.hangUp')}</Button>
                     </div>
                 );
             case 'ringing-incoming':
@@ -90,7 +100,28 @@ const CallUI: React.FC = () => {
                         <img src={otherUser.avatar} alt={otherUser.username} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-green-500" />
                         <h3 className="text-xl font-semibold">{t('call.onCallWith', { username: otherUser.username })}</h3>
                         <CallTimer />
-                        <Button onClick={hangUp} className="w-full mt-10 !bg-red-600 hover:!bg-red-700">{t('call.hangUp')}</Button>
+                        <Button onClick={() => hangUp()} className="w-full mt-10 !bg-red-600 hover:!bg-red-700">{t('call.hangUp')}</Button>
+                    </div>
+                );
+            case 'ended':
+                return (
+                    <div className="text-center">
+                         <img src={otherUser.avatar} alt={otherUser.username} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-zinc-700" />
+                        <h3 className="text-xl font-semibold">{t('call.callEnded')}</h3>
+                    </div>
+                );
+            case 'declined':
+                 return (
+                    <div className="text-center">
+                         <img src={otherUser.avatar} alt={otherUser.username} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-zinc-700" />
+                        <h3 className="text-xl font-semibold">{t('call.callDeclined', { username: otherUser.username })}</h3>
+                    </div>
+                );
+            case 'cancelled':
+                return (
+                     <div className="text-center">
+                        <img src={otherUser.avatar} alt={otherUser.username} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-zinc-700" />
+                        <h3 className="text-xl font-semibold">{t('call.callCancelled')}</h3>
                     </div>
                 );
             default:
