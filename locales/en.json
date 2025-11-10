@@ -5,7 +5,8 @@
     "delete": "Delete",
     "deleting": "Deleting...",
     "you": "You",
-    "user": "User"
+    "user": "User",
+    "stop": "Stop"
   },
   "login": {
     "title": "💎 Conecta+",
@@ -185,7 +186,10 @@
     },
     "forwardedPost": "Forwarded a post",
     "anonymousModeOn": "Go anonymous",
-    "anonymousModeOff": "Go online"
+    "anonymousModeOff": "Go online",
+    "stopRecording": "Stop recording",
+    "sendAudio": "Send audio message",
+    "cancelRecording": "Cancel recording"
   },
   "forwardModal": {
     "title": "Forward to",

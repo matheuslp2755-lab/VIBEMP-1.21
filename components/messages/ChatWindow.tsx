@@ -17,7 +17,8 @@ import {
     storage,
     storageRef,
     uploadBytes,
-    getDownloadURL
+    getDownloadURL,
+    deleteObject
 } from '../../firebase';
 import ConnectionCrystal from './ConnectionCrystal';
 import OnlineIndicator from '../common/OnlineIndicator';
@@ -60,7 +61,9 @@ const AudioPlayer: React.FC<{ src: string }> = ({ src }) => {
         const audio = audioRef.current;
         if (audio) {
             const setAudioData = () => {
-                setDuration(audio.duration);
+                if (isFinite(audio.duration)) {
+                    setDuration(audio.duration);
+                }
                 setCurrentTime(audio.currentTime);
             };
             const setAudioTime = () => setCurrentTime(audio.currentTime);
@@ -86,7 +89,7 @@ const AudioPlayer: React.FC<{ src: string }> = ({ src }) => {
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   
     return (
-        <div className="flex items-center gap-2 w-60 p-2 text-inherit">
+        <div className="flex items-center gap-2 w-full p-2 text-inherit">
             <audio ref={audioRef} src={src} preload="metadata" />
             <button onClick={togglePlayPause} className="flex-shrink-0">
                 {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
@@ -252,6 +255,12 @@ const VideoIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
+const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+    </svg>
+);
+
 const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurrentUserAnonymous }) => {
     const { t } = useLanguage();
     const { startCall, activeCall } = useCall();
@@ -267,12 +276,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaPreview, setMediaPreview] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
+    
+    const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'recorded'>('idle');
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
     const [recordingTime, setRecordingTime] = useState(0);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    // FIX: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout> to avoid type errors in a browser environment.
     const recordingIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recordingStartTimeRef = useRef<number>(0);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const currentUser = auth.currentUser;
@@ -376,16 +388,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
         });
     }, [conversationId, messages, currentUser, otherUser]);
 
-    const handleSendMessage = async (text: string) => {
+    const handleSendMessage = async (text: string, mediaData?: { url: string, type: 'image' | 'video' | 'audio' }) => {
         const currentUser = auth.currentUser;
-        if (!text.trim() || !currentUser || !conversationId || !otherUser) return;
+        if ((!text.trim() && !mediaData) || !currentUser || !conversationId) return;
     
         const messageText = text.trim();
         
         try {
           const batch = writeBatch(db);
           
-          // 1. Create message document
           const messagesRef = collection(db, 'conversations', conversationId, 'messages');
           const newMessageRef = doc(messagesRef);
           const messageData: any = {
@@ -397,15 +408,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
            if (replyingTo) {
             messageData.replyTo = replyingTo;
           }
+          if (mediaData) {
+              messageData.mediaUrl = mediaData.url;
+              messageData.mediaType = mediaData.type;
+          }
           batch.set(newMessageRef, messageData);
     
-          // 2. Update conversation document
           const conversationRef = doc(db, 'conversations', conversationId);
           batch.update(conversationRef, {
             lastMessage: {
               senderId: currentUser.uid,
-              text: messageText,
+              text: mediaData ? '' : messageText,
               timestamp: serverTimestamp(),
+              mediaType: mediaData?.type,
             },
             timestamp: serverTimestamp(),
           });
@@ -414,6 +429,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
     
           setNewMessage('');
           setReplyingTo(null);
+          setMediaFile(null);
+          setMediaPreview(null);
     
         } catch (error) {
           console.error("Error sending message: ", error);
@@ -425,6 +442,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
         if (!conversationId) return;
         setDeleting(true);
         try {
+            const messageToDelete = messages.find(m => m.id === messageId);
+            if (messageToDelete && messageToDelete.mediaUrl) {
+                try {
+                    const fileRef = storageRef(storage, messageToDelete.mediaUrl);
+                    await deleteObject(fileRef);
+                } catch (storageError: any) {
+                    if (storageError.code !== 'storage/object-not-found') {
+                        console.error("Could not delete media from storage:", storageError);
+                    }
+                }
+            }
+
             const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
             await deleteDoc(messageRef);
 
@@ -460,10 +489,168 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
         return <div className="p-4 text-center text-sm text-zinc-500">{t('messages.loading')}</div>;
     }
     
-    // This is just a placeholder and won't be fully functional without more complex logic.
-    const handleRecord = async () => {};
-    const stopRecording = () => {};
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = recorder;
+            const audioChunks: Blob[] = [];
+
+            recorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+
+            recorder.onstop = () => {
+                stream.getTracks().forEach(track => track.stop());
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                setAudioBlob(audioBlob);
+                setAudioPreviewUrl(URL.createObjectURL(audioBlob));
+                setRecordingState('recorded');
+            };
+
+            recorder.start();
+            setRecordingState('recording');
+            setRecordingTime(0);
+            recordingStartTimeRef.current = Date.now();
+            if (recordingIntervalRef.current) {
+                clearInterval(recordingIntervalRef.current);
+            }
+            recordingIntervalRef.current = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+                setRecordingTime(elapsed);
+            }, 1000);
+
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && recordingState === 'recording') {
+            mediaRecorderRef.current.stop();
+            if (recordingIntervalRef.current) {
+                clearInterval(recordingIntervalRef.current);
+            }
+        }
+    };
+
+    const handleCancelRecording = () => {
+        setRecordingState('idle');
+        setAudioBlob(null);
+        if (audioPreviewUrl) {
+            URL.revokeObjectURL(audioPreviewUrl);
+        }
+        setAudioPreviewUrl(null);
+        setRecordingTime(0);
+    };
+
+    const handleSendAudio = async (audioBlob: Blob) => {
+        if (!currentUser || !conversationId || !audioBlob) return;
+        setUploading(true);
+        try {
+            const audioRef = storageRef(storage, `audioMessages/${conversationId}/${Date.now()}.webm`);
+            const snapshot = await uploadBytes(audioRef, audioBlob);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            await handleSendMessage('', { url: downloadURL, type: 'audio' });
+        } catch (error) {
+            console.error("Error uploading audio:", error);
+        } finally {
+            setUploading(false);
+            handleCancelRecording();
+        }
+    };
+    
     const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {};
+    
+    const renderFooterContent = () => {
+        switch (recordingState) {
+            case 'recording':
+                return (
+                    <div className="flex items-center gap-3 w-full bg-zinc-100 dark:bg-zinc-900 rounded-full px-2 py-1">
+                        <div className="w-2 h-2 bg-red-500 rounded-full animate-ping ml-2"></div>
+                        <div className="w-2 h-2 bg-red-500 rounded-full -ml-4"></div>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">{t('messages.recording')}</p>
+                        <p className="text-sm font-mono text-zinc-500 dark:text-zinc-400 flex-grow">{formatTime(recordingTime)}</p>
+                        <button
+                            type="button"
+                            onClick={stopRecording}
+                            className="p-2 text-sky-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full"
+                            aria-label={t('messages.stopRecording')}
+                        >
+                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"></path></svg>
+                        </button>
+                    </div>
+                );
+            case 'recorded':
+                return (
+                    <div className="flex items-center gap-2 w-full">
+                        <button type="button" onClick={handleCancelRecording} className="p-2" aria-label={t('messages.cancelRecording')}>
+                            <TrashIcon className="w-6 h-6 text-zinc-500" />
+                        </button>
+                        <div className="flex-grow bg-zinc-100 dark:bg-zinc-900 rounded-full">
+                            {audioPreviewUrl && <AudioPlayer src={audioPreviewUrl} />}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => audioBlob && handleSendAudio(audioBlob)}
+                            className="p-2 rounded-full bg-sky-500 text-white disabled:opacity-50"
+                            disabled={uploading || !audioBlob}
+                            aria-label={t('messages.sendAudio')}
+                        >
+                            {uploading ? <Spinner /> : <SendIcon className="w-6 h-6" />}
+                        </button>
+                    </div>
+                );
+            case 'idle':
+            default:
+                return (
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (newMessage.trim() !== '') {
+                                handleSendMessage(newMessage.trim());
+                            }
+                        }}
+                        className="flex items-center gap-2"
+                    >
+                        <input
+                            type="file"
+                            id="media-upload"
+                            className="hidden"
+                            onChange={handleMediaSelect}
+                            accept="image/*,video/mp4,video/quicktime"
+                        />
+                        <label htmlFor="media-upload" className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer">
+                            <PlusCircleIcon className="w-6 h-6 text-sky-500"/>
+                        </label>
+                        <div className="flex-grow relative">
+                            <input
+                                type="text"
+                                placeholder={t('messages.messagePlaceholder')}
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                className="w-full bg-zinc-100 dark:bg-zinc-900 border-none rounded-full py-2 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            />
+                        </div>
+                        {newMessage.trim() === '' ? (
+                            <button
+                                type="button"
+                                onClick={startRecording}
+                                className="p-2"
+                                aria-label={t('messages.media.audio')}
+                            >
+                                <MicrophoneIcon className="w-6 h-6 text-zinc-500"/>
+                            </button>
+                        ) : (
+                            <button type="submit" className="text-sky-500 font-semibold disabled:opacity-50" disabled={!newMessage.trim()}>
+                                {t('messages.send')}
+                            </button>
+                        )}
+                    </form>
+                );
+        }
+    }
+
 
     return (
         <div className="h-full flex flex-col">
@@ -507,30 +694,32 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
                      const isMe = msg.senderId === currentUser?.uid;
                      const senderInfo = isMe ? null : otherUser;
                      return (
-                        <div key={msg.id} className={`flex items-end gap-2 group ${isMe ? 'justify-end' : ''}`}>
+                        <div key={msg.id} className={`flex items-end gap-2 group mb-4 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             {!isMe && (
                                 <img src={senderInfo?.avatar} alt={senderInfo?.username} className="w-6 h-6 rounded-full self-start" />
                             )}
-                            <div className={`flex flex-col items-start ${isMe ? 'items-end' : ''}`}>
+                            <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                 {msg.replyTo && (
                                     <div className={`text-xs p-1.5 rounded-t-lg max-w-xs w-fit
                                         ${isMe ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-zinc-200 dark:bg-zinc-700'}
-                                        border-b border-zinc-300 dark:border-zinc-600 ml-8`}>
+                                        border-b border-zinc-300 dark:border-zinc-600`}>
                                         <p className="font-bold">
                                             {msg.replyTo.senderId === currentUser?.uid ? t('messages.replyingToSelf') : t('messages.replyingToOther', { username: msg.replyTo.senderUsername })}
                                         </p>
                                         <p className="opacity-80 truncate">{msg.replyTo.text}</p>
                                     </div>
                                 )}
-                                <div className={`relative p-2 rounded-lg max-w-xs w-fit
+                                <div className={`relative rounded-lg max-w-xs w-fit
                                     ${isMe ? 'bg-sky-500 text-white rounded-br-none' : 'bg-white dark:bg-black border dark:border-zinc-800 rounded-bl-none'}
-                                    ${msg.replyTo ? (isMe ? '!rounded-tr-lg' : '!rounded-tl-lg') : ''}`}
+                                    ${msg.replyTo ? (isMe ? '!rounded-tr-lg' : '!rounded-tl-lg') : ''}
+                                    ${!msg.text ? '!p-0' : 'p-2'}
+                                    `}
                                 >
                                     {msg.mediaType === 'audio' && msg.mediaUrl && <AudioPlayer src={msg.mediaUrl} />}
                                     {msg.mediaType === 'forwarded_post' && msg.forwardedPostData && (
                                         <ForwardedPost content={msg.forwardedPostData} />
                                     )}
-                                    {msg.text}
+                                    {msg.text && <div className="p-2 whitespace-pre-wrap break-words">{msg.text}</div>}
 
                                     <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1
                                         ${isMe ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'}`}>
@@ -539,7 +728,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
                                     </div>
 
                                      {showDeleteConfirm === msg.id && (
-                                        <div className="absolute top-0 right-full mr-2 w-48 bg-white dark:bg-black border dark:border-zinc-800 p-2 rounded-lg shadow-lg">
+                                        <div className="absolute top-0 right-full mr-2 w-48 bg-white dark:bg-black border dark:border-zinc-800 p-2 rounded-lg shadow-lg z-10">
                                             <p className="text-sm">{t('messages.deleteTitle')}</p>
                                             <div className="flex gap-2 mt-2">
                                                 <button onClick={() => setShowDeleteConfirm(null)} className="text-xs w-full p-1 rounded bg-zinc-200 dark:bg-zinc-700">{t('common.cancel')}</button>
@@ -571,53 +760,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, onBack, isCurre
                         </div>
                     </div>
                 )}
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        if (newMessage.trim() !== '') {
-                            handleSendMessage(newMessage.trim());
-                            setNewMessage('');
-                        }
-                    }}
-                    className="flex items-center gap-2"
-                >
-                    <input
-                        type="file"
-                        id="media-upload"
-                        className="hidden"
-                        onChange={handleMediaSelect}
-                        accept="image/*,video/mp4,video/quicktime"
-                    />
-                    <label htmlFor="media-upload" className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer">
-                        <PlusCircleIcon className="w-6 h-6 text-sky-500"/>
-                    </label>
-
-                    <div className="flex-grow relative">
-                        <input
-                            type="text"
-                            placeholder={t('messages.messagePlaceholder')}
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            className="w-full bg-zinc-100 dark:bg-zinc-900 border-none rounded-full py-2 px-4 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        />
-                         {newMessage.trim() === '' && !isRecording && (
-                            <button
-                                type="button"
-                                onMouseDown={handleRecord}
-                                onMouseUp={stopRecording}
-                                onTouchStart={handleRecord}
-                                onTouchEnd={stopRecording}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
-                            >
-                                <MicrophoneIcon className="w-6 h-6 text-zinc-500"/>
-                            </button>
-                        )}
-                    </div>
-                    
-                    <button type="submit" className="text-sky-500 font-semibold disabled:opacity-50" disabled={!newMessage.trim()}>
-                        {t('messages.send')}
-                    </button>
-                </form>
+                {renderFooterContent()}
             </footer>
         </div>
     );

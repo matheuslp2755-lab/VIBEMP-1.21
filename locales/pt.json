@@ -5,7 +5,8 @@
     "delete": "Excluir",
     "deleting": "Excluindo...",
     "you": "Você",
-    "user": "Usuário"
+    "user": "Usuário",
+    "stop": "Parar"
   },
   "login": {
     "title": "💎 Conecta+",
@@ -186,7 +187,10 @@
     },
     "forwardedPost": "Encaminhou uma publicação",
     "anonymousModeOn": "Ficar anônimo",
-    "anonymousModeOff": "Ficar online"
+    "anonymousModeOff": "Ficar online",
+    "stopRecording": "Parar gravação",
+    "sendAudio": "Enviar mensagem de áudio",
+    "cancelRecording": "Cancelar gravação"
   },
   "forwardModal": {
     "title": "Encaminhar para",
