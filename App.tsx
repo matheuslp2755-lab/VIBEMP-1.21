@@ -127,8 +127,13 @@ const AppContent: React.FC = () => {
 
     const unsubscribeOnMessage = onMessage(messaging, (payload) => {
       console.log('Foreground message received. ', payload);
-      // You can display a toast notification here.
-      // For example: new Notification(payload.notification.title, { body: payload.notification.body });
+      if (payload.notification && payload.notification.title && payload.notification.body) {
+        setToastMessage(`${payload.notification.title}: ${payload.notification.body}`);
+        setShowToast(true);
+        setTimeout(() => {
+          setShowToast(false);
+        }, 3000);
+      }
     });
     
     return () => {
