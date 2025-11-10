@@ -19,7 +19,15 @@
     "getTheApp": "Get the app.",
     "error": "Failed to log in. Please check your email and password.",
     "appStoreAlt": "Download on the App Store",
-    "googlePlayAlt": "Get it on Google Play"
+    "googlePlayAlt": "Get it on Google Play",
+    "forgotPasswordTitle": "Trouble Logging In?",
+    "forgotPasswordInfo": "Enter your email and we'll send you a link to get back into your account.",
+    "resetSendButton": "Send Login Link",
+    "resetSendingButton": "Sending...",
+    "backToLogin": "Back to Login",
+    "resetSuccess": "Password reset email sent. Check your inbox!",
+    "resetUserNotFound": "Email not found. Please check and try again.",
+    "resetGenericError": "An error occurred. Please try again later."
   },
   "signup": {
     "title": "💎 Conecta+",

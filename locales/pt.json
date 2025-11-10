@@ -19,7 +19,15 @@
     "getTheApp": "Obtenha o aplicativo.",
     "error": "Falha ao entrar. Verifique seu e-mail e senha.",
     "appStoreAlt": "Baixar na App Store",
-    "googlePlayAlt": "Disponível no Google Play"
+    "googlePlayAlt": "Disponível no Google Play",
+    "forgotPasswordTitle": "Problemas para entrar?",
+    "forgotPasswordInfo": "Insira seu e-mail e enviaremos um link para você voltar a acessar a sua conta.",
+    "resetSendButton": "Enviar link para login",
+    "resetSendingButton": "Enviando...",
+    "backToLogin": "Voltar ao login",
+    "resetSuccess": "E-mail de redefinição enviado. Verifique sua caixa de entrada!",
+    "resetUserNotFound": "E-mail não encontrado. Verifique e tente novamente.",
+    "resetGenericError": "Ocorreu um erro. Tente novamente mais tarde."
   },
   "signup": {
     "title": "💎 Conecta+",
